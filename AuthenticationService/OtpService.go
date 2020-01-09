@@ -32,3 +32,7 @@ func (o OtpService) getCurrentOtp(accountId string) (string, error) {
 	}
 	return currentOtp, nil
 }
+
+type IOtpService interface {
+	getCurrentOtp(accountId string) (string, error)
+}

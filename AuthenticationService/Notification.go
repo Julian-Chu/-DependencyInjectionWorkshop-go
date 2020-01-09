@@ -19,3 +19,7 @@ func (s SlackAdapter) notify(accountId string) error {
 	}
 	return nil
 }
+
+type INotification interface {
+	notify(accountId string) error
+}

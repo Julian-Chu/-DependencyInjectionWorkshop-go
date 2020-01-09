@@ -12,6 +12,13 @@ type FailedCounter struct {
 	client *http.Client
 }
 
+type IFailedCounter interface {
+	getLock(accountId string) (bool, error)
+	addFailedCount(accountId string) error
+	getFailedCount(accountId string) (int, error)
+	reset(accountId string) error
+}
+
 func (s FailedCounter) getLock(accountId string) (bool, error) {
 	body, err := EncodeAccountIdAsBody(accountId)
 	if err != nil {
@@ -57,7 +64,7 @@ func (s FailedCounter) getFailedCount(accountId string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	failedCountResp, err := s.client.Post("http://joey.com/failedCount/GetFailedCount", "application/json", body)
+	failedCountResp, err := s.client.Post("http://joey.com/failedCount/getFailedCount", "application/json", body)
 	defer failedCountResp.Body.Close()
 	if err != nil {
 		return 0, err
@@ -79,7 +86,7 @@ func (s FailedCounter) reset(accountId string) error {
 	if err != nil {
 		return err
 	}
-	resetResp, err := s.client.Post("http://joey.com/api/failedCounter/Reset", "application/json", body)
+	resetResp, err := s.client.Post("http://joey.com/api/failedCounter/reset", "application/json", body)
 	defer resetResp.Body.Close()
 	if err != nil {
 		return err

@@ -5,6 +5,10 @@ import (
 	"net/http"
 )
 
+type IProfile interface {
+	getPasswordFromDB(accountId string) (string, error)
+}
+
 type ProfileDao struct {
 	client *http.Client
 }

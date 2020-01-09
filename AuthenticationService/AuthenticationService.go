@@ -5,17 +5,25 @@ import (
 	"encoding/json"
 )
 
+type IAuthentication interface {
+	Verify(accountId, password, otp string) (bool, error)
+}
+
 type AuthenticationService struct {
-	failedCounterService FailedCounter
-	profileDao           ProfileDao
-	sha256Adapter        Sha256Adapter
-	otpService           OtpService
-	slackAdapter         SlackAdapter
-	logger               DefaultLogger
+	failedCounter IFailedCounter
+	profile       IProfile
+	hash          IHash
+	otpService    IOtpService
+	notification  INotification
+	logger        ILogger
+}
+
+func NewAuthenticationService(failedCounter IFailedCounter, profile IProfile, hash IHash, otpService IOtpService, notification INotification, logger ILogger) *AuthenticationService {
+	return &AuthenticationService{failedCounter: failedCounter, profile: profile, hash: hash, otpService: otpService, notification: notification, logger: logger}
 }
 
 func (a AuthenticationService) Verify(accountId, password, otp string) (bool, error) {
-	isLocked, err := a.failedCounterService.getLock(accountId)
+	isLocked, err := a.failedCounter.getLock(accountId)
 	switch {
 	case err != nil:
 		return false, err
@@ -23,12 +31,12 @@ func (a AuthenticationService) Verify(accountId, password, otp string) (bool, er
 		return false, FailedTooManyTimesError{AccountId: accountId}
 	}
 
-	passwordFromDB, err := a.profileDao.getPasswordFromDB(accountId)
+	passwordFromDB, err := a.profile.getPasswordFromDB(accountId)
 	if err != nil {
 		return false, err
 	}
 
-	hashedPassword, err := a.sha256Adapter.computeHash(password)
+	hashedPassword, err := a.hash.compute(password)
 	if err != nil {
 		return false, err
 	}
@@ -40,7 +48,7 @@ func (a AuthenticationService) Verify(accountId, password, otp string) (bool, er
 
 	// compare
 	if passwordFromDB == hashedPassword && currentOtp == otp {
-		err := a.failedCounterService.reset("")
+		err := a.failedCounter.reset("")
 		if err != nil {
 			return false, err
 		}
@@ -48,19 +56,19 @@ func (a AuthenticationService) Verify(accountId, password, otp string) (bool, er
 	}
 
 	//Failed
-	err = a.failedCounterService.addFailedCount(accountId)
+	err = a.failedCounter.addFailedCount(accountId)
 	if err != nil {
 		return false, err
 	}
 
-	failedCount, err := a.failedCounterService.getFailedCount("")
+	failedCount, err := a.failedCounter.getFailedCount("")
 	if err != nil {
 		return false, err
 	}
 
 	a.logger.log(accountId, failedCount)
 
-	err = a.slackAdapter.notify(accountId)
+	err = a.notification.notify(accountId)
 	if err != nil {
 		return false, err
 	}
