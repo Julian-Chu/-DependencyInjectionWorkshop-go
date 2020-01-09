@@ -35,12 +35,12 @@ func (s StatusIsNotOkError) Error() string {
 }
 
 func (a AuthenticationService) Verify(accountId, password, otp string) (bool, error) {
-	body := new(bytes.Buffer)
-	err := json.NewEncoder(body).Encode(struct{ accountId string }{accountId: accountId})
-	if err != nil {
-		return false, err
-	}
-	isLocked, err := a.getLock(err, body)
+	//body := new(bytes.Buffer)
+	//err := json.NewEncoder(body).Encode(struct{ accountId string }{accountId: accountId})
+	//if err != nil {
+	//	return false, err
+	//}
+	isLocked, err := a.getLock(accountId)
 	switch {
 	case err != nil:
 		return false, err
@@ -58,14 +58,14 @@ func (a AuthenticationService) Verify(accountId, password, otp string) (bool, er
 		return false, err
 	}
 
-	currentOtp, err := a.getCurrentOtp(err, body, accountId)
+	currentOtp, err := a.getCurrentOtp(accountId)
 	if err != nil {
 		return false, err
 	}
 
 	// compare
 	if passwordFromDB == hashedPassword && currentOtp == otp {
-		err := a.Reset(body)
+		err := a.Reset("")
 		if err != nil {
 			return false, err
 		}
@@ -73,20 +73,18 @@ func (a AuthenticationService) Verify(accountId, password, otp string) (bool, er
 	}
 
 	//Failed
-	err = a.addFailedCount(body, accountId)
+	err = a.addFailedCount(accountId)
 	if err != nil {
 		return false, err
 	}
 
-	failedCount, err := a.getFailedCount(err, body)
+	failedCount, err := a.getFailedCount("")
 	if err != nil {
 		return false, err
 	}
 
-	// log
 	a.log(accountId, failedCount)
 
-	// notify
 	err = a.notify(accountId)
 	if err != nil {
 		return false, err
@@ -100,6 +98,7 @@ func (a AuthenticationService) log(accountId string, failedCount int) {
 }
 
 func (a AuthenticationService) notify(accountId string) error {
+	// notify
 	msg := fmt.Sprintf("account:{%s} try to login failed", accountId)
 	api := slack.New("YOUR_TOKEN_HERE")
 	channelID, timestamp, err := api.PostMessage("CHANNEL_ID", slack.MsgOptionText(msg, false))
@@ -109,7 +108,12 @@ func (a AuthenticationService) notify(accountId string) error {
 	return nil
 }
 
-func (a AuthenticationService) addFailedCount(body *bytes.Buffer, accountId string) error {
+func (a AuthenticationService) addFailedCount(accountId string) error {
+	body, err := EncodeAccountIdAsBody(accountId)
+	if err != nil {
+		return err
+	}
+
 	addFailedCountResp, err := a.client.Post("http://joey.com/api/failedCount/Add", "application/json", body)
 	defer addFailedCountResp.Body.Close()
 	if err != nil {
@@ -121,7 +125,19 @@ func (a AuthenticationService) addFailedCount(body *bytes.Buffer, accountId stri
 	return nil
 }
 
-func (a AuthenticationService) getFailedCount(err error, body *bytes.Buffer) (int, error) {
+func EncodeAccountIdAsBody(accountId string) (*bytes.Buffer, error) {
+	body := new(bytes.Buffer)
+	err := json.NewEncoder(body).Encode(struct {
+		accountId string `json:"accountId"`
+	}{accountId: accountId})
+	return body, err
+}
+
+func (a AuthenticationService) getFailedCount(accountId string) (int, error) {
+	body, err := EncodeAccountIdAsBody(accountId)
+	if err != nil {
+		return 0, err
+	}
 	failedCountResp, err := a.client.Post("http://joey.com/failedCount/GetFailedCount", "application/json", body)
 	defer failedCountResp.Body.Close()
 	if err != nil {
@@ -139,7 +155,11 @@ func (a AuthenticationService) getFailedCount(err error, body *bytes.Buffer) (in
 	return failedCount, nil
 }
 
-func (a AuthenticationService) Reset(body *bytes.Buffer) error {
+func (a AuthenticationService) Reset(accountId string) error {
+	body, err := EncodeAccountIdAsBody(accountId)
+	if err != nil {
+		return err
+	}
 	resetResp, err := a.client.Post("http://joey.com/api/failedCounter/Reset", "application/json", body)
 	defer resetResp.Body.Close()
 	if err != nil {
@@ -156,7 +176,11 @@ func (a AuthenticationService) Reset(body *bytes.Buffer) error {
 	return nil
 }
 
-func (a AuthenticationService) getCurrentOtp(err error, body *bytes.Buffer, accountId string) (string, error) {
+func (a AuthenticationService) getCurrentOtp(accountId string) (string, error) {
+	body, err := EncodeAccountIdAsBody(accountId)
+	if err != nil {
+		return "", err
+	}
 	// Get otp
 	otpResp, err := a.client.Post("http://joey.com/api/otp", "application/json", body)
 	defer otpResp.Body.Close()
@@ -192,14 +216,18 @@ func (a AuthenticationService) getPasswordFromDB(accountId string) (string, erro
 	}
 	row := db.QueryRow("call spGetUserPassword($1)", accountId)
 	var passwordFromDB string
-	err = row.Scan(&passwordFromDB)
-	if err != nil {
+	if err := row.Scan(&passwordFromDB); err != nil {
 		return "", err
 	}
 	return passwordFromDB, nil
 }
 
-func (a AuthenticationService) getLock(err error, body *bytes.Buffer) (bool, error) {
+func (a AuthenticationService) getLock(accountId string) (bool, error) {
+	body := new(bytes.Buffer)
+	err := json.NewEncoder(body).Encode(struct{ accountId string }{accountId: accountId})
+	if err != nil {
+		return false, err
+	}
 	// Get lock
 	resp, err := a.client.Post("http://joey.com/api/failedCounter/IsLocked", "application/json", body)
 	defer resp.Body.Close()
@@ -207,10 +235,10 @@ func (a AuthenticationService) getLock(err error, body *bytes.Buffer) (bool, err
 		return false, err
 	}
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	respBody := string(bodyBytes)
 	if err != nil {
 		return false, err
 	}
+	respBody := string(bodyBytes)
 	if resp.StatusCode != http.StatusOK {
 		return false, StatusIsNotOkError{StatusCode: resp.StatusCode, Message: respBody}
 	}
