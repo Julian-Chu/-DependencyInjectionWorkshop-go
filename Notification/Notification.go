@@ -1,4 +1,4 @@
-package AuthenticationService
+package Notification
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 type SlackAdapter struct {
 }
 
-func (s SlackAdapter) notify(accountId string) error {
+func (s SlackAdapter) Notify(accountId string) error {
 	// notify
 	msg := fmt.Sprintf("account:{%s} try to login failed", accountId)
 	api := slack.New("YOUR_TOKEN_HERE")
@@ -21,5 +21,5 @@ func (s SlackAdapter) notify(accountId string) error {
 }
 
 type INotification interface {
-	notify(accountId string) error
+	Notify(accountId string) error
 }

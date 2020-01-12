@@ -1,14 +1,14 @@
-package AuthenticationService
+package Logger
 
 import "log"
 
 type DefaultLogger struct {
 }
 
-func (l DefaultLogger) log(accountId string, failedCount int) {
+func (l DefaultLogger) Log(accountId string, failedCount int) {
 	log.Printf(`accountId:{%s} failed times:{%v}`, accountId, failedCount)
 }
 
 type ILogger interface {
-	log(accountId string, failedCount int)
+	Log(accountId string, failedCount int)
 }

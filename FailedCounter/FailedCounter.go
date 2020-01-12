@@ -1,7 +1,9 @@
-package AuthenticationService
+package FailedCounter
 
 import (
 	"fmt"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/CustomErrors"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/helper"
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
@@ -13,14 +15,14 @@ type FailedCounter struct {
 }
 
 type IFailedCounter interface {
-	getLock(accountId string) (bool, error)
-	addFailedCount(accountId string) error
-	getFailedCount(accountId string) (int, error)
-	reset(accountId string) error
+	GetLock(accountId string) (bool, error)
+	AddFailedCount(accountId string) error
+	GetFailedCount(accountId string) (int, error)
+	Reset(accountId string) error
 }
 
-func (s FailedCounter) getLock(accountId string) (bool, error) {
-	body, err := EncodeAccountIdAsBody(accountId)
+func (s FailedCounter) GetLock(accountId string) (bool, error) {
+	body, err := helper.EncodeAccountIdAsBody(accountId)
 	if err != nil {
 		return false, err
 	}
@@ -36,14 +38,14 @@ func (s FailedCounter) getLock(accountId string) (bool, error) {
 	}
 	respBody := string(bodyBytes)
 	if resp.StatusCode != http.StatusOK {
-		return false, StatusIsNotOkError{StatusCode: resp.StatusCode, Message: respBody}
+		return false, CustomErrors.StatusIsNotOkError{StatusCode: resp.StatusCode, Message: respBody}
 	}
 	isLocked, err := strconv.ParseBool(respBody)
 	return isLocked, nil
 }
 
-func (s FailedCounter) addFailedCount(accountId string) error {
-	body, err := EncodeAccountIdAsBody(accountId)
+func (s FailedCounter) AddFailedCount(accountId string) error {
+	body, err := helper.EncodeAccountIdAsBody(accountId)
 	if err != nil {
 		return err
 	}
@@ -59,8 +61,8 @@ func (s FailedCounter) addFailedCount(accountId string) error {
 	return nil
 }
 
-func (s FailedCounter) getFailedCount(accountId string) (int, error) {
-	body, err := EncodeAccountIdAsBody(accountId)
+func (s FailedCounter) GetFailedCount(accountId string) (int, error) {
+	body, err := helper.EncodeAccountIdAsBody(accountId)
 	if err != nil {
 		return 0, err
 	}
@@ -76,13 +78,13 @@ func (s FailedCounter) getFailedCount(accountId string) (int, error) {
 		return 0, err
 	}
 	if failedCountResp.StatusCode != http.StatusOK {
-		return 0, StatusIsNotOkError{StatusCode: failedCountResp.StatusCode, Message: failedCountStr}
+		return 0, CustomErrors.StatusIsNotOkError{StatusCode: failedCountResp.StatusCode, Message: failedCountStr}
 	}
 	return failedCount, nil
 }
 
-func (s FailedCounter) reset(accountId string) error {
-	body, err := EncodeAccountIdAsBody(accountId)
+func (s FailedCounter) Reset(accountId string) error {
+	body, err := helper.EncodeAccountIdAsBody(accountId)
 	if err != nil {
 		return err
 	}
@@ -97,7 +99,7 @@ func (s FailedCounter) reset(accountId string) error {
 		return err
 	}
 	if resetResp.StatusCode != http.StatusOK {
-		return StatusIsNotOkError{StatusCode: resetResp.StatusCode, Message: rBody}
+		return CustomErrors.StatusIsNotOkError{StatusCode: resetResp.StatusCode, Message: rBody}
 	}
 	return nil
 }

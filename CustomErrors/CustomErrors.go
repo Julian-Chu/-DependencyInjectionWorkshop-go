@@ -1,4 +1,4 @@
-package AuthenticationService
+package CustomErrors
 
 import "fmt"
 

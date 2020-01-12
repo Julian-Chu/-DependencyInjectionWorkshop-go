@@ -1,8 +1,13 @@
 package AuthenticationService
 
 import (
-	"bytes"
-	"encoding/json"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/CustomErrors"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/FailedCounter"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/Hash"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/Logger"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/Notification"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/OtpService"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/Profile"
 )
 
 type IAuthentication interface {
@@ -10,45 +15,45 @@ type IAuthentication interface {
 }
 
 type AuthenticationService struct {
-	failedCounter IFailedCounter
-	profile       IProfile
-	hash          IHash
-	otpService    IOtpService
-	notification  INotification
-	logger        ILogger
+	failedCounter FailedCounter.IFailedCounter
+	profile       Profile.IProfile
+	hash          Hash.IHash
+	otpService    OtpService.IOtpService
+	notification  Notification.INotification
+	logger        Logger.ILogger
 }
 
-func NewAuthenticationService(failedCounter IFailedCounter, profile IProfile, hash IHash, otpService IOtpService, notification INotification, logger ILogger) *AuthenticationService {
+func NewAuthenticationService(failedCounter FailedCounter.IFailedCounter, profile Profile.IProfile, hash Hash.IHash, otpService OtpService.IOtpService, notification Notification.INotification, logger Logger.ILogger) *AuthenticationService {
 	return &AuthenticationService{failedCounter: failedCounter, profile: profile, hash: hash, otpService: otpService, notification: notification, logger: logger}
 }
 
 func (a AuthenticationService) Verify(accountId, password, otp string) (bool, error) {
-	isLocked, err := a.failedCounter.getLock(accountId)
+	isLocked, err := a.failedCounter.GetLock(accountId)
 	switch {
 	case err != nil:
 		return false, err
 	case isLocked:
-		return false, FailedTooManyTimesError{AccountId: accountId}
+		return false, CustomErrors.FailedTooManyTimesError{AccountId: accountId}
 	}
 
-	passwordFromDB, err := a.profile.getPasswordFromDB(accountId)
+	passwordFromDB, err := a.profile.GetPasswordFromDB(accountId)
 	if err != nil {
 		return false, err
 	}
 
-	hashedPassword, err := a.hash.compute(password)
+	hashedPassword, err := a.hash.Compute(password)
 	if err != nil {
 		return false, err
 	}
 
-	currentOtp, err := a.otpService.getCurrentOtp(accountId)
+	currentOtp, err := a.otpService.GetCurrentOtp(accountId)
 	if err != nil {
 		return false, err
 	}
 
 	// compare
 	if passwordFromDB == hashedPassword && currentOtp == otp {
-		err := a.failedCounter.reset("")
+		err := a.failedCounter.Reset(accountId)
 		if err != nil {
 			return false, err
 		}
@@ -56,30 +61,22 @@ func (a AuthenticationService) Verify(accountId, password, otp string) (bool, er
 	}
 
 	//Failed
-	err = a.failedCounter.addFailedCount(accountId)
+	err = a.failedCounter.AddFailedCount(accountId)
 	if err != nil {
 		return false, err
 	}
 
-	failedCount, err := a.failedCounter.getFailedCount("")
+	failedCount, err := a.failedCounter.GetFailedCount("")
 	if err != nil {
 		return false, err
 	}
 
-	a.logger.log(accountId, failedCount)
+	a.logger.Log(accountId, failedCount)
 
-	err = a.notification.notify(accountId)
+	err = a.notification.Notify(accountId)
 	if err != nil {
 		return false, err
 	}
 
 	return false, nil
-}
-
-func EncodeAccountIdAsBody(accountId string) (*bytes.Buffer, error) {
-	body := new(bytes.Buffer)
-	err := json.NewEncoder(body).Encode(struct {
-		accountId string `json:"accountId"`
-	}{accountId: accountId})
-	return body, err
 }

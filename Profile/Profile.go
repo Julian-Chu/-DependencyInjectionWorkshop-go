@@ -1,4 +1,4 @@
-package AuthenticationService
+package Profile
 
 import (
 	"database/sql"
@@ -6,14 +6,14 @@ import (
 )
 
 type IProfile interface {
-	getPasswordFromDB(accountId string) (string, error)
+	GetPasswordFromDB(accountId string) (string, error)
 }
 
 type ProfileDao struct {
 	client *http.Client
 }
 
-func (p ProfileDao) getPasswordFromDB(accountId string) (string, error) {
+func (p ProfileDao) GetPasswordFromDB(accountId string) (string, error) {
 	// Get password from DB
 	db, err := sql.Open("postgres", "my connection string")
 	if err != nil {

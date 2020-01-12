@@ -1,7 +1,8 @@
-package AuthenticationService
+package OtpService
 
 import (
 	"fmt"
+	"github.com/Julian-Chu/DependencyInjectionWorkshop/helper"
 	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
@@ -11,8 +12,8 @@ type OtpService struct {
 	client *http.Client
 }
 
-func (o OtpService) getCurrentOtp(accountId string) (string, error) {
-	body, err := EncodeAccountIdAsBody(accountId)
+func (o OtpService) GetCurrentOtp(accountId string) (string, error) {
+	body, err := helper.EncodeAccountIdAsBody(accountId)
 	if err != nil {
 		return "", err
 	}
@@ -34,5 +35,5 @@ func (o OtpService) getCurrentOtp(accountId string) (string, error) {
 }
 
 type IOtpService interface {
-	getCurrentOtp(accountId string) (string, error)
+	GetCurrentOtp(accountId string) (string, error)
 }
