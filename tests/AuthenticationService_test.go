@@ -8,62 +8,43 @@ import (
 	"testing"
 )
 
-var authService AuthenticationService.IAuthentication
+var DefaultAccountId string
 
+var authService AuthenticationService.IAuthentication
 var failedCounter *mocks.IFailedCounter
 var profile *mocks.IProfile
 var hash *mocks.IHash
+var otpService *mocks.IOtpService
+var notification *mocks.INotification
+var logger *mocks.ILogger
 
 func TestMain(m *testing.M) {
 	failedCounter = &mocks.IFailedCounter{}
-	name := "joey"
-	isLocked := false
+	DefaultAccountId = "joey"
 	var err error
-	GivenAccountIsLocked(name, isLocked, err)
-	GivenAddFailedCountReturn(name, err)
+	GivenAccountIsLocked(DefaultAccountId, false, err)
+	GivenAddFailedCountReturn(DefaultAccountId, err)
 	failedCount := 0
-	GivenFailedCount(name, failedCount, err)
-	GivenResetReturn(name, err)
+	GivenFailedCount(DefaultAccountId, failedCount, err)
+	SetResetError(DefaultAccountId, err)
 	profile = &mocks.IProfile{}
 	hashedPassword := "my hashed password"
-	GivenPasswordFromDB(name, hashedPassword, err)
+	GivenPasswordFromDB(DefaultAccountId, hashedPassword, err)
 	hash = &mocks.IHash{}
 	password := "1234"
 	GivenHashedPassword(password, hashedPassword, err)
-	otpService := &mocks.IOtpService{}
+	otpService = &mocks.IOtpService{}
 	otp := "123456"
-	otpService.On("GetCurrentOtp", name).Return(otp, err)
-	notification := &mocks.INotification{}
-	notification.On("Notify", name).Return(err)
-	logger := &mocks.ILogger{}
+	GivenCurrentOtp(DefaultAccountId, otp, err)
+	notification = &mocks.INotification{}
+	SetNotifyError(DefaultAccountId, err)
+	logger = &mocks.ILogger{}
+	logger.On("Log", DefaultAccountId, failedCount)
 	authService = AuthenticationService.NewAuthenticationService(failedCounter, profile, hash, otpService, notification, logger)
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
 
-func GivenHashedPassword(password string, hashedPassword string, err error) *mock.Call {
-	return hash.On("Compute", password).Return(hashedPassword, err)
-}
-
-func GivenPasswordFromDB(name string, hashedPassword string, err error) *mock.Call {
-	return profile.On("GetPasswordFromDB", name).Return(hashedPassword, err)
-}
-
-func GivenResetReturn(name string, err error) *mock.Call {
-	return failedCounter.On("Reset", name).Return(err)
-}
-
-func GivenFailedCount(name string, failedCount int, err error) *mock.Call {
-	return failedCounter.On("GetFailedCount", name).Return(failedCount, err)
-}
-
-func GivenAddFailedCountReturn(name string, err error) *mock.Call {
-	return failedCounter.On("AddFailedCount", name).Return(err)
-}
-
-func GivenAccountIsLocked(name string, isLocked bool, err error) *mock.Call {
-	return failedCounter.On("GetLock", name).Return(isLocked, err)
-}
 func Test_isValid(t *testing.T) {
 	isValid, err := authService.Verify("joey", "1234", "123456")
 	if err != nil {
@@ -72,4 +53,45 @@ func Test_isValid(t *testing.T) {
 	if !isValid {
 		t.Error("Not valid")
 	}
+}
+
+func Test_isInvalid(t *testing.T) {
+	isValid, err := authService.Verify("joey", "1234", "wrong otp")
+	if err != nil {
+		t.Fatalf("Get error: %s", err)
+	}
+	if isValid {
+		t.Error("Valid")
+	}
+}
+func SetNotifyError(accountId string, err error) *mock.Call {
+	return notification.On("Notify", accountId).Return(err)
+}
+
+func GivenCurrentOtp(accountId string, otp string, err error) *mock.Call {
+	return otpService.On("GetCurrentOtp", accountId).Return(otp, err)
+}
+
+func GivenHashedPassword(password string, hashedPassword string, err error) *mock.Call {
+	return hash.On("Compute", password).Return(hashedPassword, err)
+}
+
+func GivenPasswordFromDB(accountId string, hashedPassword string, err error) *mock.Call {
+	return profile.On("GetPasswordFromDB", accountId).Return(hashedPassword, err)
+}
+
+func SetResetError(accountId string, err error) *mock.Call {
+	return failedCounter.On("Reset", accountId).Return(err)
+}
+
+func GivenFailedCount(accountId string, failedCount int, err error) *mock.Call {
+	return failedCounter.On("GetFailedCount", accountId).Return(failedCount, err)
+}
+
+func GivenAddFailedCountReturn(accountId string, err error) *mock.Call {
+	return failedCounter.On("AddFailedCount", accountId).Return(err)
+}
+
+func GivenAccountIsLocked(accountId string, isLocked bool, err error) *mock.Call {
+	return failedCounter.On("GetLock", accountId).Return(isLocked, err)
 }

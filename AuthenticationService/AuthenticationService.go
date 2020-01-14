@@ -66,7 +66,7 @@ func (a AuthenticationService) Verify(accountId, password, otp string) (bool, er
 		return false, err
 	}
 
-	failedCount, err := a.failedCounter.GetFailedCount("")
+	failedCount, err := a.failedCounter.GetFailedCount(accountId)
 	if err != nil {
 		return false, err
 	}
