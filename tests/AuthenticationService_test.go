@@ -47,7 +47,6 @@ func Test_isValid(t *testing.T) {
 	if !isValid {
 		t.Error("Not valid")
 	}
-	failedCounter.AssertCalled(t, "Reset", DefaultAccountId)
 }
 
 func Test_isInvalid_InvalidOtp(t *testing.T) {
@@ -55,8 +54,9 @@ func Test_isInvalid_InvalidOtp(t *testing.T) {
 	GivenPasswordFromDB(DefaultAccountId, "my hashed password", nil)
 	GivenHashedPassword("1234", "my hashedPassword", nil)
 	GivenCurrentOtp(DefaultAccountId, "123456", nil)
-	GivenFailedCount(DefaultAccountId, 2, nil)
-	logger.On("Log", DefaultAccountId, 2)
+	GivenFailedCount(DefaultAccountId, 3, nil)
+	logger.On("Log", DefaultAccountId, 3)
+	authService := AuthenticationService.NewAuthenticationService(failedCounter, profile, hash, otpService, notification, logger)
 	isValid, err := authService.Verify("joey", "1234", "wrong otp")
 	if err != nil {
 		t.Fatalf("Get error: %s", err)
@@ -64,8 +64,56 @@ func Test_isInvalid_InvalidOtp(t *testing.T) {
 	if isValid {
 		t.Error("Valid")
 	}
-	logger.AssertCalled(t, "Log", "joey", 2)
 }
+
+func Test_add_failed_count_when_invalid(t *testing.T) {
+	GivenAccountIsLocked(DefaultAccountId, false, nil)
+	GivenPasswordFromDB(DefaultAccountId, "my hashed password", nil)
+	GivenHashedPassword("1234", "my hashed Password", nil)
+	GivenCurrentOtp(DefaultAccountId, "123456", nil)
+	GivenFailedCount(DefaultAccountId, 1, nil)
+	authService := AuthenticationService.NewAuthenticationService(failedCounter, profile, hash, otpService, notification, logger)
+	isValid, err := authService.Verify("joey", "1234", "wrong otp")
+	if err != nil {
+		t.Fatalf("Get error: %s", err)
+	}
+	if isValid {
+		t.Error("Valid")
+	}
+	failedCounter.AssertCalled(t, "AddFailedCount", DefaultAccountId)
+
+}
+
+func Test_log_failed_count_when_invalid(t *testing.T) {
+	failedCounter := &mocks.IFailedCounter{}
+	var err error
+	failedCounter.On("GetLock", DefaultAccountId).Return(false, err)
+	failedCounter.On("AddFailedCount", DefaultAccountId).Return(err)
+	failedCounter.On("Reset", DefaultAccountId).Return(err)
+	profile := &mocks.IProfile{}
+	hashedPassword := "my hashed Password"
+	profile.On("GetPasswordFromDB", DefaultAccountId).Return(hashedPassword, err)
+	hash := &mocks.IHash{}
+	hash.On("Compute", "1234").Return(hashedPassword, err)
+	otpService := &mocks.IOtpService{}
+	otpService.On("GetCurrentOtp", DefaultAccountId).Return("123456", err)
+	notification := &mocks.INotification{}
+	notification.On("Notify", DefaultAccountId).Return(err)
+	logger := &mocks.ILogger{}
+	failedCount := 1
+	failedCounter.On("GetFailedCount", DefaultAccountId).Return(failedCount, err)
+	logger.On("Log", DefaultAccountId, failedCount)
+	authService = AuthenticationService.NewAuthenticationService(failedCounter, profile, hash, otpService, notification, logger)
+	isValid, err := authService.Verify("joey", "1234", "wrong otp")
+	if err != nil {
+		t.Fatalf("Get error: %s", err)
+	}
+	if isValid {
+		t.Error("Valid")
+	}
+	logger.AssertCalled(t, "Log", DefaultAccountId, failedCount)
+}
+
 func SetNotifyError(accountId string, err error) *mock.Call {
 	return notification.On("Notify", accountId).Return(err)
 }
