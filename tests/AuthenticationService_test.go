@@ -4,7 +4,6 @@ import (
 	"github.com/Julian-Chu/DependencyInjectionWorkshop/AuthenticationService"
 	"github.com/Julian-Chu/DependencyInjectionWorkshop/mocks"
 	"github.com/stretchr/testify/mock"
-	"os"
 	"testing"
 )
 
@@ -18,7 +17,36 @@ var otpService *mocks.IOtpService
 var notification *mocks.INotification
 var logger *mocks.ILogger
 
-func TestMain(m *testing.M) {
+func Test_Setup(t *testing.T) {
+	cases := []struct {
+		name     string
+		testFunc func(t2 *testing.T)
+	}{
+		{
+			name:     "isValid",
+			testFunc: test_isValid,
+		},
+		{
+			name:     "isInValid_InvalidOtp",
+			testFunc: test_isInvalid_InvalidOtp,
+		},
+		{
+			name:     "isInValid_add_failed_count_when_invalid",
+			testFunc: test_add_failed_count_when_invalid,
+		},
+		{
+			name:     "isInValid_Log_Failed",
+			testFunc: test_log_failed_count_when_invalid,
+		},
+	}
+
+	for _, tc := range cases {
+		initAuthService()
+		t.Run(tc.name, tc.testFunc)
+	}
+}
+
+func initAuthService() {
 	failedCounter = &mocks.IFailedCounter{}
 	var err error
 	GivenAddFailedCountReturn(DefaultAccountId, err)
@@ -31,11 +59,9 @@ func TestMain(m *testing.M) {
 	logger = &mocks.ILogger{}
 	logger.On("Log", DefaultAccountId, mock.AnythingOfType("int"))
 	authService = AuthenticationService.NewAuthenticationService(failedCounter, profile, hash, otpService, notification, logger)
-	exitCode := m.Run()
-	os.Exit(exitCode)
 }
 
-func Test_isValid(t *testing.T) {
+func test_isValid(t *testing.T) {
 	GivenAccountIsLocked(DefaultAccountId, false, nil)
 	GivenPasswordFromDB(DefaultAccountId, "my hashed password", nil)
 	GivenHashedPassword("1234", "my hashed password", nil)
@@ -49,7 +75,7 @@ func Test_isValid(t *testing.T) {
 	}
 }
 
-func Test_isInvalid_InvalidOtp(t *testing.T) {
+func test_isInvalid_InvalidOtp(t *testing.T) {
 	GivenAccountIsLocked(DefaultAccountId, false, nil)
 	GivenPasswordFromDB(DefaultAccountId, "my hashed password", nil)
 	GivenHashedPassword("1234", "my hashedPassword", nil)
@@ -64,7 +90,7 @@ func Test_isInvalid_InvalidOtp(t *testing.T) {
 	}
 }
 
-func Test_add_failed_count_when_invalid(t *testing.T) {
+func test_add_failed_count_when_invalid(t *testing.T) {
 	GivenAccountIsLocked(DefaultAccountId, false, nil)
 	GivenPasswordFromDB(DefaultAccountId, "my hashed password", nil)
 	GivenHashedPassword("1234", "my hashed Password", nil)
@@ -80,18 +106,18 @@ func Test_add_failed_count_when_invalid(t *testing.T) {
 	failedCounter.AssertCalled(t, "AddFailedCount", DefaultAccountId)
 }
 
-func Test_log_failed_count_when_invalid(t *testing.T) {
+func test_log_failed_count_when_invalid(t *testing.T) {
 	GivenAccountIsLocked(DefaultAccountId, false, nil)
 	GivenPasswordFromDB(DefaultAccountId, "my hashed password", nil)
 	GivenHashedPassword("1234", "my hashed Password", nil)
 	GivenCurrentOtp(DefaultAccountId, "123456", nil)
-	failedCounter := &mocks.IFailedCounter{}
+	//failedCounter := &mocks.IFailedCounter{}
 	failedCounter.On("GetLock", DefaultAccountId).Return(false, nil)
 	failedCounter.On("GetFailedCount", DefaultAccountId).Return(1, nil)
 	failedCounter.On("AddFailedCount", DefaultAccountId).Return(nil)
 	failedCounter.On("Reset", DefaultAccountId).Return(nil)
 
-	authService := AuthenticationService.NewAuthenticationService(failedCounter, profile, hash, otpService, notification, logger)
+	//authService := AuthenticationService.NewAuthenticationService(failedCounter, profile, hash, otpService, notification, logger)
 	isValid, err := authService.Verify("joey", "1234", "wrong otp")
 
 	if err != nil {
